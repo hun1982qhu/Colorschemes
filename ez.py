@@ -12,8 +12,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('filename', type=argparse.FileType('r'),
                         help='pass a filename')
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def write(fname, content):
@@ -93,9 +92,9 @@ return M'''
 
 
 def init(name, background, keys):
-    requirements = ""
-    for key in keys:
-        requirements += f'local {key} = require("{name}.{key}")\n'
+    requirements = "".join(
+        f'local {key} = require("{name}.{key}")\n' for key in keys
+    )
 
     code = f'''vim.api.nvim_command("hi clear")
 if vim.fn.exists("syntax_on") then
@@ -134,18 +133,15 @@ def gen_palette(palette):
 def gen_skeleton(syntax, name, colorscheme_name):
     code = f'local {name} = {{\n'
 
+    prop_keys = ('fg', 'bg', 'style')
     for key, value in syntax.items():
         group = key
         props = value.split(' ')
-        prop_keys = ('fg', 'bg', 'style')
         if props[0] != '':
             skeleton = "\t" + group + " = {"
             for i in range(len(props)):
                 if props[i] not in ['-', '.']:
-                    if i == 2:
-                        style = ','.join([styles[char] for char in props[i]])
-                        skeleton += f'{prop_keys[i]} = "{style}", '
-                    elif i == 1:
+                    if i == 1:
                         if group in ["Normal", "NormalNC", "MsgArea", "TelescopeBorder"]:
                             skeleton += f'{prop_keys[i]} = Config.transparent_background and "NONE" or C.{props[i]}, '
                         elif group == "Keyword":
@@ -160,11 +156,16 @@ def gen_skeleton(syntax, name, colorscheme_name):
                             skeleton += f'{prop_keys[i]} = "{props[i]}", '
                         else:
                             skeleton += f"{prop_keys[i]} = C.{props[i]}, "
+                    elif i == 2:
+                        style = ','.join([styles[char] for char in props[i]])
+                        skeleton += f'{prop_keys[i]} = "{style}", '
                     else:
-                        if props[i][0] == '#':
-                            skeleton += f'{prop_keys[i]} = "{props[i]}", '
-                        else:
-                            skeleton += f"{prop_keys[i]} = C.{props[i]}, "
+                        skeleton += (
+                            f'{prop_keys[i]} = "{props[i]}", '
+                            if props[i][0] == '#'
+                            else f"{prop_keys[i]} = C.{props[i]}, "
+                        )
+
             code += '\t' + skeleton + '},\n'
 
     code += "}\n\nreturn " + name
@@ -180,7 +181,7 @@ if __name__ == "__main__":
             print("File must have an extension .yml or .yaml")
             sys.exit()
 
-    keys = [key for key in obj]
+    keys = list(obj)
     if 'palette' not in keys:
         print("palette key not found in yaml file")
         sys.exit()
